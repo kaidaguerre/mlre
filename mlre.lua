@@ -1,4 +1,5 @@
 -- mlre v2.0.1 @sonocircuit
+-- [monkaiboy rework]
 -- llllllll.co/t/mlre
 --
 -- an adaption of
@@ -297,10 +298,40 @@ function event_exec(e)
       env_gate_off(e.i)
     end
   elseif e.t == eSPLICE then
-    track[e.i].splice_active = e.active
-    set_clip(e.i)
-    render_splice()
-    dirtygrid = true
+    active_splice_sync = params:get("active_splice_sync")
+
+    if track[e.i].play == 1 and active_splice_sync  > 1 then
+      print("set active splice sync track "..e.i.." splice "..e.active)
+      local beats = 0
+      clock.run(function()
+        -- beat
+        if active_splice_sync == 2 then
+          beats = 1
+          -- bar
+        elseif active_splice_sync == 3 then
+          beats = 4
+          -- splice
+        else
+          -- get splice length
+          beats = tp[e.i].splice[e.active].beatnum
+          print("beats set to "..beats)
+        end
+
+        print("sync beats: "..beats)
+        clock.sync(beats)
+        print("NOW set")
+        track[e.i].splice_active = e.active
+        set_clip(e.i)
+        render_splice()
+        dirtygrid = true
+      end)
+    else
+      print("set active splice")
+      track[e.i].splice_active = e.active
+      set_clip(e.i)
+      render_splice()
+      dirtygrid = true
+    end
   elseif e.t == eROUTE then
     if e.ch == 5 then
       track[e.i].t5 = e.route
@@ -523,6 +554,7 @@ function splice_resize(i, focus, length)
       set_clip(i)
     end
     set_info(i, focus)
+    print("track    "..i.."    splice    "..focus.."    resized - length: "..length.." beats: "..tp[i].splice[focus].beatnum.." bpm: "..tp[i].splice[focus].bpm)
   else
     show_message("splice   too   long")
   end
@@ -557,7 +589,10 @@ function clear_tape(i) -- clear tape and reset splices
   local start = tp[i].s
   softcut.buffer_clear_region_channel(buffer, start, MAX_TAPELENGTH)
   track[i].loop = 0
-  init_splices(i)
+  if params:get("init_splice_on_clear") == 2 then
+    init_splices(i)
+  end
+
   render_splice()
   show_message("track    "..i.."    tape    cleared")
   dirtygrid = true
@@ -567,7 +602,9 @@ function clear_buffers() -- clear both buffers and reset splices
   softcut.buffer_clear()
   for i = 1, 6 do
     track[i].loop = 0
-    init_splices(i)
+    if params:get("init_splice_on_clear") == 2 then
+      init_splices(i)
+    end
   end
   render_splice()
   show_message("buffers    cleared")
@@ -2021,6 +2058,11 @@ function init()
   params:add_control("rnd_ucut", "upper freq", controlspec.new(20, 18000, 'exp', 1, 18000, "Hz"))
   params:add_control("rnd_lcut", "lower freq", controlspec.new(20, 18000, 'exp', 1, 20, "Hz"))
 
+  -- splice settings
+  params:add_group("splice_params", "splice", 2)
+  params:add_option("init_splice_on_clear","init splices when clearing", {"off", "on"}, 1)
+  params:add_option("active_splice_sync", "set active splice", {"free", "beat", "bar", "splice"}, 4)
+
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)
   params:add_option("arc_orientation", "arc orientation", {"horizontal", "vertical"}, 1)
@@ -2050,7 +2092,7 @@ function init()
     -- tempo map
     params:add_option(i.."tempo_map_mode", "tempo-map", {"none", "resize", "repitch"}, 1)
     params:set_action(i.."tempo_map_mode", function(mode) track[i].tempo_map = mode - 1 set_tempo_map(i) grid_page(vREC) end)
-    -- play lauch
+    -- play launch
     params:add_option(i.."start_launch", "track launch", {"free", "beat", "bar"}, 1)
     params:set_action(i.."start_launch", function(option) track[i].start_launch = option page_redraw(vMAIN, 7) end)
     -- reset active

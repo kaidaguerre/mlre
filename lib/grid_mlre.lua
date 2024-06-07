@@ -795,15 +795,22 @@ function grd.tape_keys(x, y, z, offset)
   if z == 1 and view ~= vTAPE and autofocus then
     set_view(vTAPE)
   end
+
+  -- track row pressed
   if y > 1 and y < 8 then
+    --calc track #
     local i = y - 1
+    --splice selection
     if x < 9 and z == 1 then
       track_focus = i
       arc_track_focus = i
+      -- x is splice #
       track[track_focus].splice_focus = x
       arc_splice_focus = track[track_focus].splice_focus
+      -- set active splice
       if alt == 1 and mod == 0 then
         local e = {} e.t = eSPLICE e.i = track_focus e.active = x event(e)
+      --  copy buffer
       elseif alt == 0 and mod == 1 then
         local src = tp[track_focus].side == 1 and 1 or 2
         local dst = tp[track_focus].side == 1 and 2 or 1
@@ -811,6 +818,7 @@ function grd.tape_keys(x, y, z, offset)
       end
       render_splice()
     elseif x == 9 then
+      -- display whole track tape
       track_focus = i
       arc_track_focus = i
       view_buffer = z == 1 and true or false
