@@ -300,7 +300,9 @@ function event_exec(e)
   elseif e.t == eSPLICE then
     active_splice_sync = params:get("active_splice_sync")
 
-    if track[e.i].play == 1 and active_splice_sync  > 1 then
+    print("eSPLICE")
+
+    if track[e.i].play == 1 and active_splice_sync > 1 then
       print("sync set active splice for track "..e.i.." to "..e.active.." ")
       local beats = 0
       clock.run(function()
@@ -887,7 +889,10 @@ end
 
 function phase_poll(i, pos)
 
-  local q = (clip[i].l / 64)
+  -- if chaining is on, then once per loop we need to fire off the next splice event
+
+  -- fire event 4 quantization periods before end of buffer
+  local q = (clip[i].l / 64)*4
 
   --  get_pos(1, pos)
   --if i==1 then
@@ -903,12 +908,14 @@ function phase_poll(i, pos)
         splice = 1
       end
       -- now update splice
-      track[i].splice_active =  splice
-      set_clip(i)
-      render_splice()
-      dirtygrid = true
+      local e = {} e.t = eSPLICE e.i = i e.active = splice event(e)
 
-      print("new active splice"..track[i].splice_active)
+      ----track[i].splice_active =  splice
+      ----set_clip(i)
+      ----render_splice()
+      ----dirtygrid = true
+      --
+      --print("new active splice"..track[i].splice_active)
 
     end
 
