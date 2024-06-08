@@ -301,7 +301,7 @@ function event_exec(e)
     active_splice_sync = params:get("active_splice_sync")
 
     if track[e.i].play == 1 and active_splice_sync  > 1 then
-      print("set active splice sync track "..e.i.." splice "..e.active)
+      print("sync set active splice for track "..e.i.." to "..e.active.." ")
       local beats = 0
       clock.run(function()
         -- beat
@@ -319,7 +319,7 @@ function event_exec(e)
 
         print("sync beats: "..beats)
         clock.sync(beats)
-        print("NOW set")
+        print("NOW set active splice for track "..e.i.." to "..e.active.." ")
         track[e.i].splice_active = e.active
         set_clip(e.i)
         render_splice()
@@ -886,6 +886,34 @@ function filter_select(i, option)
 end
 
 function phase_poll(i, pos)
+
+  local q = (clip[i].l / 64)
+
+  --  get_pos(1, pos)
+  --if i==1 then
+  if track[i].play == 1 then
+    if track[i].rev == 0 and  pos + q  >= clip[i].e or
+      track[i].rev == 1 and pos - q <= clip[i].s then
+      print("track "..i.." pos: "..pos.." l "..clip[i].l.." s "..clip[i].s.." e "..clip[i].e.." q "..q)
+      print("track "..i.." end of buffer, pos: "..pos)
+      print("current active splice"..track[i].splice_active)
+
+      splice = track[i].splice_active + 1
+      if splice > 8 then
+        splice = 1
+      end
+      -- now update splice
+      track[i].splice_active =  splice
+      set_clip(i)
+      render_splice()
+      dirtygrid = true
+
+      print("new active splice"..track[i].splice_active)
+
+    end
+
+  end
+
   -- calc softcut positon
   local pp = ((pos - clip[i].s) / clip[i].l)
   local pc = ((pos - tp[i].s) / MAX_TAPELENGTH)
@@ -2107,7 +2135,7 @@ function init()
     -- reset count
     params:add_number(i.."reset_count", "reset count", 2, 128, 4, function(param) return (param:get().." beats") end)
     params:set_action(i.."reset_count", function(val) track[i].beat_reset = val page_redraw(vMAIN, 8) end)
-    
+
     params:add_separator("track_level_params"..i, "track "..i.." levels")
     -- track volume
     params:add_control(i.."vol", "volume", controlspec.new(0, 1, 'lin', 0, 1, ""), function(param) return (round_form(param:get() * 100, 1, "%")) end)
@@ -2143,7 +2171,7 @@ function init()
     -- transpose
     params:add_option(i.."transpose", "transpose", scales.id[1], 8)
     params:set_action(i.."transpose", function(x) set_transpose(i, x) end)
-   
+
     -- filter params
     params:add_separator("track_filter_params"..i, "track "..i.." filter")
     -- cutoff
@@ -2196,7 +2224,7 @@ function init()
     params:set_action(i.."adsr_sustain", function(val) env[i].sustain = val clamp_env_levels(i) page_redraw(vENV, 1) page_redraw(vENV, 2) end)
     -- env release
     params:add_control(i.."adsr_release", "release", controlspec.new(0, 10, 'lin', 0.1, 1, "s"))
-    params:set_action(i.."adsr_release", function(val) env[i].release = val * 10 page_redraw(vENV, 1) page_redraw(vENV, 2) end)    
+    params:set_action(i.."adsr_release", function(val) env[i].release = val * 10 page_redraw(vENV, 1) page_redraw(vENV, 2) end)
 
     -- params for track to trigger
     params:add_separator(i.."trigger_params", "track "..i.." trigger")
@@ -2230,7 +2258,7 @@ function init()
     -- midi velocity
     params:add_number(i.."midi_vel", "midi velocity", 1, 127, 100)
     params:set_action(i.."midi_vel", function(num) trig[i].midi_vel = num end)
-    
+
     -- input options
     params:add_option(i.."input_options", "input options", {"L+R", "L IN", "R IN", "OFF"}, 1)
     params:set_action(i.."input_options", function(option) tp[i].input = option set_softcut_input(i) end)
@@ -2266,7 +2294,7 @@ function init()
   params:add_separator("modulation_params", "modulation")
   -- lfos
   init_lfos()
-  
+
   -- params for splice resize
   for i = 1, 6 do
     params:add_option(i.."splice_length", i.." splice length", resize_options, 4)
@@ -2515,7 +2543,7 @@ function init()
       arc_is = true
     end
   end
-  
+
   if pset_load then
     params:default()
   else
@@ -2529,7 +2557,7 @@ function init()
   set_view(vMAIN)
   set_gridview(vCUT, "z")
   set_gridview(vREC, "o")
- 
+
   print("mlre loaded and ready. enjoy!")
 
 end -- end of init
@@ -2727,7 +2755,7 @@ end
 v.enc[vMAIN] = function(n, d)
   ui.main_enc(n, d)
 end
-  
+
 v.redraw[vMAIN] = function()
   ui.main_redraw()
 end
