@@ -263,6 +263,13 @@ function event_exec(e)
   elseif e.t == eSTOP then
     stop_track(e.i)
   elseif e.t == eSTART then
+    print("start track "..e.i.." at "..e.pos)
+    -- if splice chaining is active, set the active splice to the one that was selected
+    if next_splice[e.i] ~= 0 then
+      -- send eSplice event to set the active splice
+        local es = {} es.t = eSPLICE es.i = es.i e.active = next_splice[e.i] e.chain=true event(es)
+    end
+
     softcut.position(e.i, e.pos or track[e.i].cut)
     track[e.i].play = 1
     track[e.i].beat_count = 0
@@ -300,33 +307,56 @@ function event_exec(e)
   elseif e.t == eSPLICE then
     active_splice_sync = params:get("active_splice_sync")
 
+
+    local chain = false
+    if e.chain ~= nil then
+      chain = true
+    end
     print("eSPLICE")
 
     if track[e.i].play == 1 and active_splice_sync > 1 then
-      print("sync set active splice for track "..e.i.." to "..e.active.." ")
-      local beats = 0
-      clock.run(function()
-        -- beat
-        if active_splice_sync == 2 then
-          beats = 1
-          -- bar
-        elseif active_splice_sync == 3 then
-          beats = 4
-          -- splice
-        else
-          -- get splice length
-          beats = tp[e.i].splice[e.active].beatnum
-          print("beats set to "..beats)
-        end
+        print("sync set active splice for track "..e.i.." to "..e.active.." ")
+        local beats = 0
 
-        print("sync beats: "..beats)
+    if chain then
+      print("chaining splices")
+      -- if chaining, wait full splice length
+      beats = tp[e.i].splice[e.active].beatnum
+    elseif active_splice_sync == 2 then
+      -- sync to beat
+      beats = 1
+    elseif active_splice_sync == 3 then
+      -- sync to bar
+      beats = 4
+      -- splice
+    else
+      -- sync to splice length
+      beats = tp[e.i].splice[e.active].beatnum
+      print("beats set to "..beats)
+    end
+
+    print("sync beats: "..beats)
+    clock.run(function()
+
         clock.sync(beats)
         print("NOW set active splice for track "..e.i.." to "..e.active.." ")
         track[e.i].splice_active = e.active
         set_clip(e.i)
         render_splice()
         dirtygrid = true
+        -- if chaining, set next splice
+        if chain then
+          next_splice[e.i] = next_splice[e.i] + 1
+            if next_splice[e.i] > 8 then
+                next_splice[e.i] = 0
+            end
+          print("chain - next splice set to "..next_splice[e.i])
+        end
+        -- send another event
+          -- TODO will this result in stack overflow????
+        local es = {} es.t = eSPLICE es.i = e.i es.active = next_splice[e.i] es.chain=true event(es)
       end)
+
     else
       print("set active splice")
       track[e.i].splice_active = e.active
@@ -887,39 +917,49 @@ function filter_select(i, option)
   softcut.post_filter_dry(i, option == 5 and 1 or track[i].dry_level)
 end
 
+ --array containing next splice for each channel
+next_splice = {}
+for i = 1, 6 do
+  -- disable chainign for all channels
+  next_splice[i] = 0
+end
+next_splice[1] = 2
+
+
+
 function phase_poll(i, pos)
 
   -- if chaining is on, then once per loop we need to fire off the next splice event
 
   -- fire event 4 quantization periods before end of buffer
   local q = (clip[i].l / 64)*4
-
-  --  get_pos(1, pos)
-  --if i==1 then
-  if track[i].play == 1 then
-    if track[i].rev == 0 and  pos + q  >= clip[i].e or
-      track[i].rev == 1 and pos - q <= clip[i].s then
-      print("track "..i.." pos: "..pos.." l "..clip[i].l.." s "..clip[i].s.." e "..clip[i].e.." q "..q)
-      print("track "..i.." end of buffer, pos: "..pos)
-      print("current active splice"..track[i].splice_active)
-
-      splice = track[i].splice_active + 1
-      if splice > 8 then
-        splice = 1
-      end
-      -- now update splice
-      local e = {} e.t = eSPLICE e.i = i e.active = splice event(e)
-
-      ----track[i].splice_active =  splice
-      ----set_clip(i)
-      ----render_splice()
-      ----dirtygrid = true
-      --
-      --print("new active splice"..track[i].splice_active)
-
-    end
-
-  end
+  --
+  ----  get_pos(1, pos)
+  ----if i==1 then
+  --if track[i].play == 1 then
+  --  if track[i].rev == 0 and  pos + q  >= clip[i].e or
+  --    track[i].rev == 1 and pos - q <= clip[i].s then
+  --    print("track "..i.." pos: "..pos.." l "..clip[i].l.." s "..clip[i].s.." e "..clip[i].e.." q "..q)
+  --    print("track "..i.." end of buffer, pos: "..pos)
+  --    print("current active splice"..track[i].splice_active)
+  --
+  --    splice = track[i].splice_active + 1
+  --    if splice > 8 then
+  --      splice = 1
+  --    end
+  --    -- now update splice
+  --    local e = {} e.t = eSPLICE e.i = i e.active = splice event(e)
+  --
+  --    ----track[i].splice_active =  splice
+  --    ----set_clip(i)
+  --    ----render_splice()
+  --    ----dirtygrid = true
+  --    --
+  --    --print("new active splice"..track[i].splice_active)
+  --
+  --  end
+  --
+  --end
 
   -- calc softcut positon
   local pp = ((pos - clip[i].s) / clip[i].l)
