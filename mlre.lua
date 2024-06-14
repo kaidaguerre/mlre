@@ -50,6 +50,14 @@ MAX_TAPELENGTH = 57
 DEFAULT_SPLICELEN = 4
 DEFAULT_BEATNUM = 4
 
+local SpliceSync = {
+  FREE = 1,
+  BEAT = 2,
+  BAR = 3,
+  SPLICE = 4
+}
+
+
 -- ui
 main_pageNum = 1
 lfo_pageNum = 1
@@ -263,12 +271,12 @@ function event_exec(e)
   elseif e.t == eSTOP then
     stop_track(e.i)
   elseif e.t == eSTART then
-    print("start track "..e.i.." at "..e.pos)
-    -- if splice chaining is active, set the active splice to the one that was selected
-    if next_splice[e.i] ~= 0 then
-      -- send eSplice event to set the active splice
-        local es = {} es.t = eSPLICE es.i = es.i e.active = next_splice[e.i] e.chain=true event(es)
-    end
+    --print("start track "..e.i.." at "..e.pos)
+    ---- if splice chaining is active, set the active splice to the one that was selected
+    --if next_splice[e.i] ~= 0 then
+    --  -- send eSplice event to set the active splice
+    --    local es = {} es.t = eSPLICE es.i = es.i e.active = next_splice[e.i] e.chain=true event(es)
+    --end
 
     softcut.position(e.i, e.pos or track[e.i].cut)
     track[e.i].play = 1
@@ -307,62 +315,49 @@ function event_exec(e)
   elseif e.t == eSPLICE then
     active_splice_sync = params:get("active_splice_sync")
 
-
-    local chain = false
-    if e.chain ~= nil then
-      chain = true
-    end
     print("eSPLICE")
 
-    if track[e.i].play == 1 and active_splice_sync > 1 then
-        print("sync set active splice for track "..e.i.." to "..e.active.." ")
-        local beats = 0
+    if track[e.i].play == 1 and active_splice_sync ~= SpliceSync.FREE then
+      print("sync set active splice for track "..e.i.." to "..e.active.." ")
+      local beats = 0
 
-    if chain then
-      print("chaining splices")
-      -- if chaining, wait full splice length
-      beats = tp[e.i].splice[e.active].beatnum
-    elseif active_splice_sync == 2 then
-      -- sync to beat
-      beats = 1
-    elseif active_splice_sync == 3 then
-      -- sync to bar
-      beats = 4
-      -- splice
-    else
-      -- sync to splice length
-      beats = tp[e.i].splice[e.active].beatnum
-      print("beats set to "..beats)
-    end
+      if active_splice_sync == SpliceSync.BEAT then
+        -- sync to beat
+        beats = 1
+      elseif active_splice_sync == SpliceSync.BAR then
+        -- sync to bar
+        beats = 4
+        -- splice
+      else
+        print("sync to splice")
+        -- sync to splice length
+        oldActive = track[e.i].splice_active
+        print("old active splice: "..oldActive)
+        beats = tp[e.i].splice[oldActive].beatnum
+        print("beats set to "..beats)
+      end
 
     print("sync beats: "..beats)
     clock.run(function()
-
         clock.sync(beats)
-        print("NOW set active splice for track "..e.i.." to "..e.active.." ")
-        track[e.i].splice_active = e.active
-        set_clip(e.i)
-        render_splice()
-        dirtygrid = true
-        -- if chaining, set next splice
-        if chain then
-          next_splice[e.i] = next_splice[e.i] + 1
-            if next_splice[e.i] > 8 then
-                next_splice[e.i] = 0
-            end
-          print("chain - next splice set to "..next_splice[e.i])
-        end
+        print("NOW set active splice")
+        set_active_splice(e.i, e.active)
+
+      ---- if chaining, set next splice
+      --  if chain then
+      --    next_splice[e.i] = next_splice[e.i] + 1
+      --      if next_splice[e.i] > 8 then
+      --          next_splice[e.i] = 0
+      --      end
+      --    print("chain - next splice set to "..next_splice[e.i])
+      --  end
         -- send another event
           -- TODO will this result in stack overflow????
-        local es = {} es.t = eSPLICE es.i = e.i es.active = next_splice[e.i] es.chain=true event(es)
+        --local es = {} es.t = eSPLICE es.i = e.i es.active = next_splice[e.i] es.chain=true event(es)
       end)
 
     else
-      print("set active splice")
-      track[e.i].splice_active = e.active
-      set_clip(e.i)
-      render_splice()
-      dirtygrid = true
+      set_active_splice(e.i, e.active)
     end
   elseif e.t == eROUTE then
     if e.ch == 5 then
@@ -423,6 +418,14 @@ function recall_watch(e)
       recall[i].has_data = true
     end
   end
+end
+
+function set_active_splice(i, active)
+  print("set active splice for track "..i.." to "..active.." ")
+  track[i].splice_active = active
+  set_clip(i)
+  render_splice()
+  dirtygrid = true
 end
 
 function recall_exec(i)
@@ -489,7 +492,9 @@ for i = 1, 6 do
   track[i].loop_end = 16
   track[i].dur = 4
   track[i].splice_active = 1
+  track[i].splice_next_active = 1
   track[i].splice_focus = 1
+  track[i].splice_chain_length = 1
   track[i].cut = TAPE_GAP * i + (i - 1) * MAX_TAPELENGTH
   track[i].pos_abs = TAPE_GAP * i + (i - 1) * MAX_TAPELENGTH
   track[i].pos_rel = 0
@@ -511,6 +516,7 @@ for i = 1, 6 do
   track[i].reset = false
   track[i].beat_count = 0
   track[i].beat_reset = 4
+
 end
 
 -- tape variables -> six slices of tape, one for each track
@@ -536,6 +542,18 @@ for i = 1, 6 do
     tp[i].splice[j].bpm = 60 
   end
 end
+
+
+--array containing next splice for each channel
+next_splice = {}
+for i = 1, 6 do
+  -- disable chainign for all channels
+  next_splice[i] = 0
+end
+next_splice[1] = 2
+
+
+
 
 -- clip variables -> six clips define the active playback window, one for each track
 clip = {}
@@ -916,16 +934,6 @@ function filter_select(i, option)
   softcut.post_filter_br(i, option == 4 and 1 or 0)
   softcut.post_filter_dry(i, option == 5 and 1 or track[i].dry_level)
 end
-
- --array containing next splice for each channel
-next_splice = {}
-for i = 1, 6 do
-  -- disable chainign for all channels
-  next_splice[i] = 0
-end
-next_splice[1] = 2
-
-
 
 function phase_poll(i, pos)
 
@@ -2155,7 +2163,7 @@ function init()
   audio.level_tape(1)
 
   for i = 1, 6 do
-    params:add_group("track_group"..i, "track "..i, 49)
+    params:add_group("track_group"..i, "track "..i, 51)
 
     params:add_separator("track_options_params"..i, "track "..i.." options")
     -- select buffer
@@ -2174,6 +2182,7 @@ function init()
     params:add_option(i.."reset_active", "track reset", {"off", "on"}, 1)
     params:set_action(i.."reset_active", function(mode)
       track[i].reset = mode == 2 and true or false
+      print("track "..i.." reset: "..tostring(track[i].reset))
       if num == 2 then
         track[i].beat_count = 0
       end
@@ -2305,6 +2314,14 @@ function init()
     -- midi velocity
     params:add_number(i.."midi_vel", "midi velocity", 1, 127, 100)
     params:set_action(i.."midi_vel", function(num) trig[i].midi_vel = num end)
+
+
+    -- splice params
+    params:add_separator("splice_params"..i, "track "..i.." splice")
+    -- splice chain length
+    params:add_number(i.."splice_chain_length", "chain", 1, 9, 1, function(param) return param:get() == 1 and "off" or param:get() == 9 and "random" or param:get() end)
+    params:set_action(i.."splice_chain_length", function(val) track[i].splice_chain_length = val print("splice chain length track "..i.." "..track[i].splice_chain_length) end)
+
 
     -- input options
     params:add_option(i.."input_options", "input options", {"L+R", "L IN", "R IN", "OFF"}, 1)
@@ -2599,7 +2616,7 @@ function init()
 
   for i = 1, 6 do
     stop_track(i) -- set all track levels to 0 post params:bang
-  end
+   end
 
   set_view(vMAIN)
   set_gridview(vCUT, "z")
