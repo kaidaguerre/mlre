@@ -307,7 +307,7 @@ function event_exec(e)
   elseif e.t == eSPLICE then
     active_splice_sync = params:get("active_splice_sync")
 
-    print("eSPLICE")
+    print("eSPLICE handler")
 
     if track[e.i].play == 1 and active_splice_sync ~= SpliceSync.FREE then
       print("sync set active splice for track "..e.i.." to "..e.active.." ")
@@ -1603,14 +1603,12 @@ function clock.tempo_change_handler()
 end
 
 function clock.transport.start()
-  print ("start")
   if params:get("midi_trnsp") == 3 then
     startall()
   end
 end
 
 function clock.transport.stop()
-  print ("stop")
   if params:get("midi_trnsp") == 3 then
     stopall()
   end
@@ -1684,27 +1682,19 @@ end
 function track_reset()
   while true do
     clock.sync(1)
-    print("clock beat: "..clock.get_beats())
-
-
     for i = 1, 6 do
       if track[i].reset and track[i].play == 1 then
         track[i].beat_count = track[i].beat_count + 1
-        print("track "..i.." reset ".."beat count: "..track[i].beat_count.." beat reset: "..track[i].beat_reset)
         if track[i].beat_count >= track[i].beat_reset then
-
-
           if track[i].rec == 0 and track[i].loaded then
             if track[i].loop == 0 then
               local cut = track[i].rev == 0 and clip[i].s or (clip[i].l + clip[i].s)
               softcut.position(i, cut)
-              print("reset track "..i.." to "..cut)
             else
               local lstart = clip[i].s + (track[i].loop_start - 1) / 16 * clip[i].l
               local lend = clip[i].s + (track[i].loop_end) / 16 * clip[i].l
               local cut = track[i].rev == 0 and lstart or lend
               softcut.position(i, cut)
-                print("[loop] reset track "..i.." to "..cut)
             end
           end
           track[i].beat_count = 0
