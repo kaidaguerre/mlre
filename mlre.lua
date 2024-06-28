@@ -1,4 +1,5 @@
 -- mlre v2.0.1 @sonocircuit
+-- [monkaiboy rework]
 -- llllllll.co/t/mlre
 --
 -- an adaption of
@@ -48,6 +49,13 @@ TAPE_GAP = 1
 MAX_TAPELENGTH = 57
 DEFAULT_SPLICELEN = 4
 DEFAULT_BEATNUM = 4
+
+local SpliceSync = {
+  FREE = 1,
+  BEAT = 2,
+  BAR = 3
+}
+
 
 -- ui
 main_pageNum = 1
@@ -297,10 +305,32 @@ function event_exec(e)
       env_gate_off(e.i)
     end
   elseif e.t == eSPLICE then
-    track[e.i].splice_active = e.active
-    set_clip(e.i)
-    render_splice()
-    dirtygrid = true
+    active_splice_sync = params:get("active_splice_sync")
+
+    print("eSPLICE handler")
+
+    if track[e.i].play == 1 and active_splice_sync ~= SpliceSync.FREE then
+      print("sync set active splice for track "..e.i.." to "..e.active.." ")
+      local beats = 0
+
+      if active_splice_sync == SpliceSync.BEAT then
+        -- sync to beat
+        beats = 1
+      else
+        -- sync to bar
+        beats = 4
+      end
+
+    print("sync beats: "..beats)
+    clock.run(function()
+        clock.sync(beats)
+        print("NOW set active splice")
+        set_active_splice(e.i, e.active)
+      end)
+
+    else
+      set_active_splice(e.i, e.active)
+    end
   elseif e.t == eROUTE then
     if e.ch == 5 then
       track[e.i].t5 = e.route
@@ -360,6 +390,14 @@ function recall_watch(e)
       recall[i].has_data = true
     end
   end
+end
+
+function set_active_splice(i, active)
+  print("set active splice for track "..i.." to "..active.." ")
+  track[i].splice_active = active
+  set_clip(i)
+  render_splice()
+  dirtygrid = true
 end
 
 function recall_exec(i)
@@ -557,7 +595,10 @@ function clear_tape(i) -- clear tape and reset splices
   local start = tp[i].s
   softcut.buffer_clear_region_channel(buffer, start, MAX_TAPELENGTH)
   track[i].loop = 0
-  init_splices(i)
+  if params:get("init_splice_on_clear") == 2 then
+    init_splices(i)
+  end
+
   render_splice()
   show_message("track    "..i.."    tape    cleared")
   dirtygrid = true
@@ -567,7 +608,9 @@ function clear_buffers() -- clear both buffers and reset splices
   softcut.buffer_clear()
   for i = 1, 6 do
     track[i].loop = 0
-    init_splices(i)
+    if params:get("init_splice_on_clear") == 2 then
+      init_splices(i)
+    end
   end
   render_splice()
   show_message("buffers    cleared")
@@ -2021,6 +2064,11 @@ function init()
   params:add_control("rnd_ucut", "upper freq", controlspec.new(20, 18000, 'exp', 1, 18000, "Hz"))
   params:add_control("rnd_lcut", "lower freq", controlspec.new(20, 18000, 'exp', 1, 20, "Hz"))
 
+  -- splice settings
+  params:add_group("splice_params", "splice", 2)
+  params:add_option("init_splice_on_clear","init splices when clearing", {"off", "on"}, 1)
+  params:add_option("active_splice_sync", "set active splice", {"free", "beat", "bar"}, 3)
+
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)
   params:add_option("arc_orientation", "arc orientation", {"horizontal", "vertical"}, 1)
@@ -2065,7 +2113,7 @@ function init()
     -- reset count
     params:add_number(i.."reset_count", "reset count", 2, 128, 4, function(param) return (param:get().." beats") end)
     params:set_action(i.."reset_count", function(val) track[i].beat_reset = val page_redraw(vMAIN, 8) end)
-    
+
     params:add_separator("track_level_params"..i, "track "..i.." levels")
     -- track volume
     params:add_control(i.."vol", "volume", controlspec.new(0, 1, 'lin', 0, 1, ""), function(param) return (round_form(param:get() * 100, 1, "%")) end)
@@ -2101,7 +2149,7 @@ function init()
     -- transpose
     params:add_option(i.."transpose", "transpose", scales.id[1], 8)
     params:set_action(i.."transpose", function(x) set_transpose(i, x) end)
-   
+
     -- filter params
     params:add_separator("track_filter_params"..i, "track "..i.." filter")
     -- cutoff
@@ -2154,7 +2202,7 @@ function init()
     params:set_action(i.."adsr_sustain", function(val) env[i].sustain = val clamp_env_levels(i) page_redraw(vENV, 1) page_redraw(vENV, 2) end)
     -- env release
     params:add_control(i.."adsr_release", "release", controlspec.new(0, 10, 'lin', 0.1, 1, "s"))
-    params:set_action(i.."adsr_release", function(val) env[i].release = val * 10 page_redraw(vENV, 1) page_redraw(vENV, 2) end)    
+    params:set_action(i.."adsr_release", function(val) env[i].release = val * 10 page_redraw(vENV, 1) page_redraw(vENV, 2) end)
 
     -- params for track to trigger
     params:add_separator(i.."trigger_params", "track "..i.." trigger")
@@ -2188,7 +2236,7 @@ function init()
     -- midi velocity
     params:add_number(i.."midi_vel", "midi velocity", 1, 127, 100)
     params:set_action(i.."midi_vel", function(num) trig[i].midi_vel = num end)
-    
+
     -- input options
     params:add_option(i.."input_options", "input options", {"L+R", "L IN", "R IN", "OFF"}, 1)
     params:set_action(i.."input_options", function(option) tp[i].input = option set_softcut_input(i) end)
@@ -2224,7 +2272,7 @@ function init()
   params:add_separator("modulation_params", "modulation")
   -- lfos
   init_lfos()
-  
+
   -- params for splice resize
   for i = 1, 6 do
     params:add_option(i.."splice_length", i.." splice length", resize_options, 4)
@@ -2473,7 +2521,7 @@ function init()
       arc_is = true
     end
   end
-  
+
   if pset_load then
     params:default()
   else
@@ -2487,7 +2535,7 @@ function init()
   set_view(vMAIN)
   set_gridview(vCUT, "z")
   set_gridview(vREC, "o")
- 
+
   print("mlre loaded and ready. enjoy!")
 
 end -- end of init
@@ -2685,7 +2733,7 @@ end
 v.enc[vMAIN] = function(n, d)
   ui.main_enc(n, d)
 end
-  
+
 v.redraw[vMAIN] = function()
   ui.main_redraw()
 end
