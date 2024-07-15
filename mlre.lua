@@ -508,7 +508,7 @@ for i = 1, 6 do
     tp[i].splice[j].init_len = DEFAULT_SPLICELEN
     tp[i].splice[j].init_beatnum = DEFAULT_BEATNUM
     tp[i].splice[j].beatnum = DEFAULT_BEATNUM
-    tp[i].splice[j].bpm = 60 
+    tp[i].splice[j].bpm = 60
   end
 end
 
@@ -552,11 +552,24 @@ function splice_resize(i, focus, length)
       length = tp[i].splice[focus].l
     end
   end
+
+  print("resize splice "..focus.." for track "..i.." to "..length.." beats "..tp[i].splice[focus].beatnum.. "tempo_map " ..track[i].tempo_map )
+
   -- set splice variables
   if tp[i].splice[focus].s + length <= tp[i].e then
+    bpm = 60 / length * tp[i].splice[focus].beatnum
+
+    -- if this is splice 1 and auto_init_splices is on, set the length ons position of all splices
+    -- to be same length and contiguous
+    if focus ==1 and params:get("auto_init_splices") == 2 then
+       init_splices(i, length, tp[i].splice[focus].beatnum, bpm)
+      print("init_splices")
+    end
+
+
     tp[i].splice[focus].e = tp[i].splice[focus].s + length
     tp[i].splice[focus].l = length
-    tp[i].splice[focus].bpm = 60 / length * tp[i].splice[focus].beatnum
+    tp[i].splice[focus].bpm = bpm
     if track[i].splice_focus == track[i].splice_active then
       set_clip(i)
     end
@@ -567,6 +580,7 @@ function splice_resize(i, focus, length)
 end
 
 function splice_reset(i, focus) -- reset splice to default length
+  print("reset splice "..focus.." for track "..i)
   local focus = focus or track[i].splice_focus
   -- reset variables
   tp[i].splice[focus].s = tp[i].splice[focus].init_start
@@ -596,7 +610,7 @@ function clear_tape(i) -- clear tape and reset splices
   softcut.buffer_clear_region_channel(buffer, start, MAX_TAPELENGTH)
   track[i].loop = 0
   if params:get("init_splice_on_clear") == 2 then
-    init_splices(i)
+    init_splices(i, DEFAULT_SPLICELEN, DEFAULT_BEATNUM, 60)
   end
 
   render_splice()
@@ -609,7 +623,7 @@ function clear_buffers() -- clear both buffers and reset splices
   for i = 1, 6 do
     track[i].loop = 0
     if params:get("init_splice_on_clear") == 2 then
-      init_splices(i)
+      init_splices(i, DEFAULT_SPLICELEN, DEFAULT_BEATNUM, 60)
     end
   end
   render_splice()
@@ -617,16 +631,16 @@ function clear_buffers() -- clear both buffers and reset splices
   dirtygrid = true
 end
 
-function init_splices(i)
+function init_splices(i, len, beatNum, bpm)
   for j = 1, 8 do
     tp[i].splice[j] = {}
-    tp[i].splice[j].s = tp[i].s + (DEFAULT_SPLICELEN + 0.01) * (j - 1)
-    tp[i].splice[j].e = tp[i].splice[j].s + DEFAULT_SPLICELEN
+    tp[i].splice[j].s = tp[i].s + (len + 0.01) * (j - 1)
+    tp[i].splice[j].e = tp[i].splice[j].s + len
     tp[i].splice[j].l = tp[i].splice[j].e - tp[i].splice[j].s
     tp[i].splice[j].init_start = tp[i].splice[j].s
-    tp[i].splice[j].init_len = DEFAULT_SPLICELEN
-    tp[i].splice[j].beatnum = DEFAULT_BEATNUM
-    tp[i].splice[j].bpm = 60 
+    tp[i].splice[j].init_len = len
+    tp[i].splice[j].beatnum = beatNum
+    tp[i].splice[j].bpm = bpm
     tp[i].splice[j].name = "-"
     set_info(i, j)
   end
@@ -1247,6 +1261,7 @@ function chop(i) -- called when rec key is pressed
       tp[i].splice[track[i].splice_active].init_len = length
       tp[i].splice[track[i].splice_active].beatnum = get_beatnum(length)
       tp[i].splice[track[i].splice_active].bpm = 60 / length * get_beatnum(length)
+      print("chop autolength " .. track[i].splice_active .. " length: " .. length .. " beatnum: " .. tp[i].splice[track[i].splice_active].beatnum .. " bpm: " .. tp[i].splice[track[i].splice_active].bpm)
       -- set clip
       set_clip(i)
       set_info(i, track[i].splice_active)
@@ -2065,9 +2080,10 @@ function init()
   params:add_control("rnd_lcut", "lower freq", controlspec.new(20, 18000, 'exp', 1, 20, "Hz"))
 
   -- splice settings
-  params:add_group("splice_params", "splice", 2)
-  params:add_option("init_splice_on_clear","init splices when clearing", {"off", "on"}, 1)
-  params:add_option("active_splice_sync", "set active splice", {"free", "beat", "bar"}, 3)
+  params:add_group("splice_params", "splice", 3)
+  params:add_option("init_splice_on_clear","init splices on clear", {"off", "on"}, 1)
+  params:add_option("auto_init_splices", "auto-init all splice lengths", {"off", "on"}, 1)
+  params:add_option("active_splice_sync", "set active splice sync", {"free", "beat", "bar"}, 3)
 
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)
