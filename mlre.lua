@@ -140,7 +140,7 @@ patterns_page_names_l = {"meter", "launch"}
 patterns_page_names_r = {"length", "play   mode"}
 
 -- tape page variables
-tape_actions = {"load", "clear", "save", "copy", "paste"}
+tape_actions = {"load", "clear", "save", "copy", "paste", "protect", "unprotect"}
 tape_action = 1
 copy_track = nil
 copy_splice = nil
@@ -509,6 +509,7 @@ for i = 1, 6 do
     tp[i].splice[j].init_beatnum = DEFAULT_BEATNUM
     tp[i].splice[j].beatnum = DEFAULT_BEATNUM
     tp[i].splice[j].bpm = 60
+    tp[i].splice[j].protected = true
   end
 end
 
@@ -542,6 +543,10 @@ function set_clip(i)
 end
 
 function splice_resize(i, focus, length)
+  if tp[i].splice[focus].protected then
+    show_message("splice   is   protected")
+    return
+  end
   -- if no length argument recalculate
   if length == nil then
     if track[i].tempo_map == 0 then
@@ -595,7 +600,49 @@ function splice_reset(i, focus) -- reset splice to default length
   set_info(i, focus)
 end
 
-function clear_splice(i) -- clear focused splice
+-- 8 by 2d array
+-- TODO init in loop
+waiting_clear_splice_confirmation = {
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+  {false,false,false,false,false,false},
+}
+function clear_splice(i, confirm) -- clear focused splice
+  spliceNum =   track[i].splice_focus
+  -- check whether we should confirm
+  confirm_clear_splice = params:get("confirm_clear_splice") == 2 and confirm
+
+  -- TODO put in function
+  if confirm_clear_splice and waiting_clear_splice_confirmation[i][spliceNum] == false then
+    show_message("clear  track    "..i.."    splice    "..track[i].splice_focus.."?  (press)" )
+    waiting_clear_splice_confirmation[i][spliceNum] = true
+    print("start clear_splice coroutine")
+    clock.run(
+            function()
+              print("clear_splice coroutine")
+              clock.sleep(1)
+              print("clear_splice coroutine after sleep")
+              if waiting_clear_splice_confirmation[i][spliceNum] then
+                waiting_clear_splice_confirmation[i][spliceNum] = false
+                show_message("track    "..i.."    splice    "..track[i].splice_focus.."    not    cleared" )
+              end
+              print("clear_splice coroutine done")
+              return
+            end
+    )
+    print("after clear_splice clear_tape coroutine")
+    return
+  else
+    waiting_clear_splice_confirmation[i][spliceNum] = false
+  end
+
+
+
   local buffer = tp[i].side
   local start = tp[i].splice[track[i].splice_focus].s
   local length = tp[i].splice[track[i].splice_focus].l + FADE_TIME
@@ -604,7 +651,37 @@ function clear_splice(i) -- clear focused splice
   show_message("track    "..i.."    splice    "..track[i].splice_focus.."    cleared")
 end
 
-function clear_tape(i) -- clear tape and reset splices
+-- todo init in loop
+waiting_clear_tape_confirmation = {false,false,false,false,false,false}
+function clear_tape(i, confirm) -- clear tape and reset splicesa
+
+  -- check whether we should confirm
+  confirm_clear_track = params:get("confirm_clear_track") == 2 and confirm
+
+  -- TODO put in function
+  if confirm_clear_track and waiting_clear_tape_confirmation[i] == false then
+    show_message("clear   track   "..i.."    tape?   (press)" )
+    waiting_clear_tape_confirmation[i] = true
+    print("start clear_tape coroutine")
+    clock.run(
+            function()
+              print("clear_tape coroutine")
+              clock.sleep(1)
+              print("clear_tapes coroutine after sleep")
+              if waiting_clear_tape_confirmation[i] then
+                waiting_clear_tape_confirmation [i] = false
+                show_message("track    "..i.."    tape    not   cleared")
+              end
+              print("clear_tapes coroutine done")
+              return
+            end
+    )
+    print("after start clear_tape coroutine")
+    return
+  else
+    waiting_clear_tape_confirmation[i] = false
+  end
+
   local buffer = tp[i].side
   local start = tp[i].s
   softcut.buffer_clear_region_channel(buffer, start, MAX_TAPELENGTH)
@@ -618,7 +695,48 @@ function clear_tape(i) -- clear tape and reset splices
   dirtygrid = true
 end
 
-function clear_buffers() -- clear both buffers and reset splices
+waiting_clear_buffer_confirmation = false
+function clear_buffers() -- clear both buffers and reset splicesconfirm_clear_tape
+  --check for protected splices
+  can_clear = true
+  --for i = 1, 6 do
+  --    for j = 1, 8 do
+  --      if tp[i].splice[j].protected then
+  --          show_message("splice   "..j.."   on   track   "..i.."   is   protected")
+  --          can_clear = false
+  --      end
+  --    end
+  --end
+  if not can_clear then return end
+
+  -- TODO put in function
+  -- check whether we should confirm
+  confirm_clear_tape = params:get("confirm_clear_tape") == 2
+
+  if confirm_clear_tape and waiting_clear_buffer_confirmation == false then
+    show_message("clear   buffers?   (press)" )
+    waiting_clear_buffer_confirmation = true
+    print("start clear_buffers coroutine")
+    clock.run(
+            function()
+              print("clear_buffers coroutine")
+              clock.sleep(1)
+              print("clear_buffers coroutine after sleep")
+              if waiting_clear_buffer_confirmation then
+                waiting_clear_buffer_confirmation = false
+                show_message("buffers    not   cleared")
+              end
+            end
+    )
+    print("after start clear_buffers coroutine")
+    return
+  else
+    waiting_clear_buffer_confirmation = false
+  end
+
+  for i = 1, 6 do
+    clear_tape(i, false)
+  end
   softcut.buffer_clear()
   for i = 1, 6 do
     track[i].loop = 0
@@ -2084,6 +2202,9 @@ function init()
   params:add_option("init_splice_on_clear","init splices on clear", {"off", "on"}, 1)
   params:add_option("auto_init_splices", "auto-init all splice lengths", {"off", "on"}, 1)
   params:add_option("active_splice_sync", "set active splice sync", {"free", "beat", "bar"}, 3)
+  params:add_option("confirm_clear_tape", "confirm clear tape", {"off", "on"}, 1)
+  params:add_option("confirm_clear_track", "confirm clear track", {"off", "on"}, 1)
+  params:add_option("confirm_clear_splice", "confirm clear splice", {"off", "on"}, 1)
 
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)

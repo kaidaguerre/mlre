@@ -824,7 +824,7 @@ function ui.tape_key(n, z)
           screenredrawtimer:stop()
           fileselect.enter(os.getenv("HOME").."/dust/audio", function(n) fileselect_callback(n, track_focus) end)
         elseif tape_actions[tape_action] == "clear" and z == 1 then
-          clear_splice(track_focus)
+          clear_splice(track_focus, false)
         elseif tape_actions[tape_action] == "save" and z == 0 then
           screenredrawtimer:stop()
           textentry.enter(filesave_callback, "mlre-" .. (math.random(9000) + 1000))
@@ -860,6 +860,12 @@ function ui.tape_key(n, z)
           else
             show_message("clipboard   empty")
           end
+        elseif tape_actions[tape_action] == "protect" and z == 1 then
+            tp[track_focus].splice[track[track_focus].splice_focus].protected = true
+            show_message("protected")
+        elseif tape_actions[tape_action] == "unprotect" and z == 1 then
+            tp[track_focus].splice[track[track_focus].splice_focus].protected = false
+            show_message("unprotect")
         end
       elseif n == 3 and z == 1 then
         -- set barnum

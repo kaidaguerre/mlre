@@ -5,14 +5,14 @@ function grd.nav(x, z, pos)
   if z == 1 then
     if x == 1 then
       if alt == 1 then
-        clear_splice(track_focus)
+        clear_splice(track_focus, true)
       else
         set_gridview(vREC, pos)
         set_view(vMAIN)
       end
     elseif x == 2 then
       if alt == 1 then
-        clear_tape(track_focus)
+        clear_tape(track_focus, true)
       else
         set_gridview(vCUT, pos)
         set_view(vMAIN)
