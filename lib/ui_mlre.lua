@@ -58,19 +58,57 @@ function ui.main_enc(n, d)
       track_focus = util.clamp(track_focus + d, 1, 6)
     elseif shift == 1 then
       params:delta("output_level", d)
+      send_midi_for_param("output_level")
     end
     dirtyscreen = true
   elseif n == 2 then
-    params:delta(track_focus..main_page_params_l[main_pageNum], d)
+    param_name=track_focus..main_page_params_l[main_pageNum]
+    params:delta(param_name, d)
+    send_midi_for_param(param_name)
   elseif n == 3 then
-    if main_page_params_r[main_pageNum] == "post_dry" then
-      if params:get(track_focus.."filter_type") < 5 then
-        params:delta(track_focus..main_page_params_r[main_pageNum], d)
-      end
+    param_name=track_focus..main_page_params_r[main_pageNum]
+    if param_name == "post_dry" and params:get(track_focus.."filter_type") >= 5 then
+        return
     else
-      params:delta(track_focus..main_page_params_r[main_pageNum], d)
+      params:delta(param_name, d)
+      send_midi_for_param(param_name)
     end
   end
+end
+
+function send_midi_for_param(param_name)
+  print("send_midi_for_param  "..param_name)
+  p = params:lookup_param(param_name)
+  pmap = norns.pmap.data[p.id]
+  if pmap == nil then
+    return
+  end
+  -- get the param value
+  val = params:get(param_name)
+
+  --map to a midi cc value
+  local mapped_val
+  -- try to get the control spec
+  spec = p.controlspec
+  if spec ~= nil then
+    -- use the control spec warp function to map the value
+    warpedValue =  spec.warp.unmap(spec, val)
+    mapped_val = math.floor(util.linlin(0,1,pmap.in_lo,pmap.in_hi,warpedValue))
+  else
+    print("no spec")
+    -- get the output range of the param
+    local r = p:get_range()
+    -- we are mapping FROM the parameter range TO the controller range
+    from_lo = r[1]
+    from_hi = r[2]
+    to_lo = pmap.in_lo
+    to_hi = pmap.in_hi
+    mapped_val = math.floor(util.linlin(from_lo, from_hi, to_lo, to_hi, val))
+  end
+  print("mapped_val  "..mapped_val)
+
+  --send the midi cc
+  m:cc(pmap.cc, mapped_val, pmap.ch)
 end
 
 function ui.main_redraw()
