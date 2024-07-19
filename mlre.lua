@@ -1970,6 +1970,53 @@ function load_patterns()
   end
 end
 
+function send_cc()
+  print("send cc")
+  if params:get("midi_cc") == 1 then
+    return
+  end
+
+  -- List of parameters we send midi cc for
+  local params = {
+    "vol", "pan", "dub", "rec", "filter_type", "filter_q", "cutoff", "post_dry",
+    "warble_amount", "warble_depth", "warble_freq", "warble_state", "send_track5", "send_track6"
+
+  }
+
+  -- Iterate through channels 1-6
+  for chan = 1, 6 do
+    -- Iterate through each parameter
+    for _, param in ipairs(params) do
+      p = chan..param
+      send_midi_for_param(chan..param)
+    end
+  end
+
+end
+
+function send_global_cc()
+  print("send global cc")
+  global_params = { "reverb", "rev_tape_input", "rev_eng_input", "rev_cut_input", "rev_monitor_input",
+                    "rev_return_level", "rev_pre_delay", "rev_lf_fc", "rev_low_time", "rev_mid_time", "rev_hf_damping",
+                    "input_level", "output_level", "tape_level", "monitor_level", "engine_level", "softcut_level"}
+  for _, param in ipairs(global_params) do
+    send_midi_for_param(param)
+  end
+end
+
+function send_global_cc_loop()
+  print("send global cc LOOP")
+  while true do
+    if params:get("midi_cc") == 1 then
+      return
+    end
+    send_global_cc()
+    print("sent global cc")
+    clock.sleep(10)
+    print("sleep")
+  end
+end
+
 function silent_load(number, pset_id)
   -- load sesh data file
   loaded_sesh_data = {}
@@ -2106,7 +2153,7 @@ function init()
   end
 
   -- midi params
-  params:add_group("midi_params", "midi settings", 3)
+  params:add_group("midi_params", "midi settings", 4)
   -- midi device
   build_midi_device_list()
   params:add_option("global_midi_device", "midi out device", midi_devices, 1)
@@ -2115,6 +2162,9 @@ function init()
   params:set_action("global_midi_control_device", function(val) mc = midi.connect(val) end)
   -- send midi transport
   params:add_option("midi_trnsp","midi transport", {"off", "send", "receive"}, 1)
+  -- send midi cc
+  params:add_option("midi_cc","midi cc", {"off", "on"}, 1)
+  params:set_action("midi_cc", function(val) if val==2 then clock.run(send_global_cc_loop) end end)
 
   -- global track control
   params:add_group("track_control", "track control", 60)
@@ -2568,6 +2618,7 @@ function init()
       load_patterns()
       dirtyscreen = true
       dirtygrid = true
+      send_cc()
       clock.run(function() clock.sleep(0.1) render_splice() end)
       print("finished reading pset:'"..pset_id.."'")
     end
@@ -2598,7 +2649,11 @@ function init()
   quantizer = clock.run(update_q_clock)
   envcounter = clock.run(env_run)
   reset_clk = clock.run(track_reset)
+    print("sending global cc's")
+  if params:get("midi_cc") == 2 then
 
+    midi_cc = clock.run(send_global_cc_loop)
+  end
 
   -- lattice
   vizclock = lattice:new()

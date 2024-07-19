@@ -77,7 +77,9 @@ function ui.main_enc(n, d)
 end
 
 function send_midi_for_param(param_name)
-  print("send_midi_for_param  "..param_name)
+  if params:get("midi_cc") == 1 then
+    return
+  end
   p = params:lookup_param(param_name)
   pmap = norns.pmap.data[p.id]
   if pmap == nil then
@@ -105,9 +107,9 @@ function send_midi_for_param(param_name)
     to_hi = pmap.in_hi
     mapped_val = math.floor(util.linlin(from_lo, from_hi, to_lo, to_hi, val))
   end
-  print("mapped_val  "..mapped_val)
+  --print("send_midi_for_param  "..param_name.."  cc  "..pmap.cc.."  channel  "..pmap.ch.."  val  "..val.."  mapped_val  "..mapped_val)
 
-  --send the midi cc to the configured midi cc output
+--send the midi cc to the configured midi cc output
   mc:cc(pmap.cc, mapped_val, pmap.ch)
 end
 
