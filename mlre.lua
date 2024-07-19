@@ -17,6 +17,9 @@
 norns.version.required = 231114
 
 m = midi.connect()
+-- the midi connection to send cc messages to
+-- (to allow external control surfaces to respond to changes made on the norns)
+mc = midi.connect()
 a = arc.connect()
 g = grid.connect()
 
@@ -2103,11 +2106,13 @@ function init()
   end
 
   -- midi params
-  params:add_group("midi_params", "midi settings", 2)
+  params:add_group("midi_params", "midi settings", 3)
   -- midi device
   build_midi_device_list()
   params:add_option("global_midi_device", "midi out device", midi_devices, 1)
   params:set_action("global_midi_device", function(val) m = midi.connect(val) end)
+  params:add_option("global_midi_control_device", "midi cc device", midi_devices, 1)
+  params:set_action("global_midi_control_device", function(val) mc = midi.connect(val) end)
   -- send midi transport
   params:add_option("midi_trnsp","midi transport", {"off", "send", "receive"}, 1)
 
@@ -2198,7 +2203,7 @@ function init()
   params:add_control("rnd_lcut", "lower freq", controlspec.new(20, 18000, 'exp', 1, 20, "Hz"))
 
   -- splice settings
-  params:add_group("splice_params", "splice", 3)
+  params:add_group("splice_params", "splice", 6)
   params:add_option("init_splice_on_clear","init splices on clear", {"off", "on"}, 1)
   params:add_option("auto_init_splices", "auto-init all splice lengths", {"off", "on"}, 1)
   params:add_option("active_splice_sync", "set active splice sync", {"free", "beat", "bar"}, 3)

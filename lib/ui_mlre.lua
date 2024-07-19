@@ -107,8 +107,8 @@ function send_midi_for_param(param_name)
   end
   print("mapped_val  "..mapped_val)
 
-  --send the midi cc
-  m:cc(pmap.cc, mapped_val, pmap.ch)
+  --send the midi cc to the configured midi cc output
+  mc:cc(pmap.cc, mapped_val, pmap.ch)
 end
 
 function ui.main_redraw()
