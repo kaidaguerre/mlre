@@ -906,15 +906,9 @@ function handle_splice_select_double_press(track_focus, splice_focus)
   last_splice_press[track_focus][splice_focus] = current_time
   --if the last press was less than 0.1 seconds ago, protect/unprotect the splice (check for nil)
   if last_press and current_time - last_press < 0.3 then
-    print("splice ".. track_focus .." double pressed")
     -- get the references splice
     sp = tp[track_focus].splice[splice_focus]
     sp.protected  = not sp.protected
-    if sp.protected then
-      show_message("track  ".. track_focus .."  splice ".. splice_focus .."  protected")
-    else
-      show_message("track  ".. track_focus .."  splice ".. splice_focus .."  unprotected")
-    end
   end
 end
 

@@ -1081,7 +1081,12 @@ function ui.tape_redraw()
   else
     screen.level(15)
     screen.move(4, 12)
-    screen.text("TRACK "..track_focus)
+    track_num = "TRACK "..track_focus
+    --  if protected add '!'
+    if #get_protected_splices(track_focus) > 0 then
+      track_num = track_num.."!"
+    end
+    screen.text(track_num)
     screen.level(4)
     screen.move(32, 12)
     if track[track_focus].tempo_map == 1 then
