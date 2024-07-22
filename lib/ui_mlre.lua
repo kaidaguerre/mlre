@@ -840,6 +840,8 @@ end
 ---------------------- TAPE VIEW ------------------------
 
 function ui.tape_key(n, z)
+  print("tape key  "..n.."   "..z)
+  splice_focus = track[track_focus].splice_focus
   if view_presets then
     if n == 2 and z == 1 then
       local num = get_pset_num(pset_list[pset_focus])
@@ -861,10 +863,19 @@ function ui.tape_key(n, z)
     if shift == 0 then
       if n == 2 then
         if tape_actions[tape_action] == "load" and z == 1 then
-          screenredrawtimer:stop()
-          fileselect.enter(os.getenv("HOME").."/dust/audio", function(n) fileselect_callback(n, track_focus) end)
+          --check if splice is protected
+          if tp[track_focus].splice[splice_focus].protected then
+              show_message("splice   protected")
+          else
+              screenredrawtimer:stop()
+              fileselect.enter(os.getenv("HOME").."/dust/audio", function(n) fileselect_callback(n, track_focus) end)
+          end
         elseif tape_actions[tape_action] == "clear" and z == 1 then
-          clear_splice(track_focus, false)
+          if tp[track_focus].splice[splice_focus].protected then
+            show_message("splice   protected")
+          else
+            clear_splice(track_focus, false)
+          end
         elseif tape_actions[tape_action] == "save" and z == 0 then
           screenredrawtimer:stop()
           textentry.enter(filesave_callback, "mlre-" .. (math.random(9000) + 1000))
@@ -873,32 +884,39 @@ function ui.tape_key(n, z)
           copy_splice = track[track_focus].splice_focus
           show_message("copied   to   clipboard")
         elseif tape_actions[tape_action] == "paste" and z == 1 then
-          local paste_track = track_focus
-          local paste_splice = track[track_focus].splice_focus
-          if copy_splice ~= nil then
-            local src_ch = tp[copy_track].side
-            local dst_ch = tp[paste_track].side
-            local start_src = tp[copy_track].splice[copy_splice].s
-            local start_dst = tp[paste_track].splice[paste_splice].s
-            local length = tp[copy_track].splice[copy_splice].e - tp[copy_track].splice[copy_splice].s
-            local preserve = alt == 1 and 0.5 or 0
-            if tp[paste_track].splice[paste_splice].e + length <= tp[paste_track].e then
-              softcut.buffer_copy_mono(src_ch, dst_ch, start_src, start_dst, length, 0.01, preserve)
-              tp[paste_track].splice[paste_splice].e = start_dst + length
-              tp[paste_track].splice[paste_splice].l = length
-              tp[paste_track].splice[paste_splice].init_start = start_dst
-              tp[paste_track].splice[paste_splice].init_len = length
-              tp[paste_track].splice[paste_splice].beatnum = tp[copy_track].splice[copy_splice].beatnum
-              tp[paste_track].splice[paste_splice].bpm = 60 / length * tp[copy_track].splice[copy_splice].beatnum
-              tp[paste_track].splice[paste_splice].name = tp[copy_track].splice[copy_splice].name
-              splice_resize(paste_track, paste_splice, length)
-              render_splice()
-              copy_splice = nil
-            else
-              show_message("out   of   boundries")
-            end
+          if tp[track_focus].splice[splice_focus].protected then
+            show_message("splice   protected")
           else
-            show_message("clipboard   empty")
+            local paste_track = track_focus
+            local paste_splice = track[track_focus].splice_focus
+            if copy_splice ~= nil then
+              local src_ch = tp[copy_track].side
+              local dst_ch = tp[paste_track].side
+              local start_src = tp[copy_track].splice[copy_splice].s
+              local start_dst = tp[paste_track].splice[paste_splice].s
+              local length = tp[copy_track].splice[copy_splice].e - tp[copy_track].splice[copy_splice].s
+              local preserve = alt == 1 and 0.5 or 0
+              if tp[paste_track].splice[paste_splice].e + length <= tp[paste_track].e then
+                softcut.buffer_copy_mono(src_ch, dst_ch, start_src, start_dst, length, 0.01, preserve)
+                tp[paste_track].splice[paste_splice].e = start_dst + length
+                tp[paste_track].splice[paste_splice].l = length
+                tp[paste_track].splice[paste_splice].init_start = start_dst
+                tp[paste_track].splice[paste_splice].init_len = length
+                tp[paste_track].splice[paste_splice].beatnum = tp[copy_track].splice[copy_splice].beatnum
+                tp[paste_track].splice[paste_splice].bpm = 60 / length * tp[copy_track].splice[copy_splice].beatnum
+                tp[paste_track].splice[paste_splice].name = tp[copy_track].splice[copy_splice].name
+                splice_resize(paste_track, paste_splice, length)
+                render_splice()
+                -- only clear paste buffer if clear_paste_buffer_after_paste is set`
+                if params:get("clear_paste_buffer_after_paste") == 2 then
+                  copy_splice = nil
+                end
+              else
+                show_message("out   of   boundaries")
+              end
+            else
+              show_message("clipboard   empty")
+            end
           end
         end
       elseif n == 3 and z == 1 then

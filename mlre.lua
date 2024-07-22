@@ -2300,13 +2300,14 @@ function init()
   params:add_control("rnd_lcut", "lower freq", controlspec.new(20, 18000, 'exp', 1, 20, "Hz"))
 
   -- splice settings
-  params:add_group("splice_params", "splice", 6)
+  params:add_group("splice_params", "splice", 7)
   params:add_option("init_splice_on_clear","init splices on clear", {"off", "on"}, 1)
   params:add_option("auto_init_splices", "auto-init all splice lengths", {"off", "on"}, 1)
   params:add_option("active_splice_sync", "set active splice sync", {"free", "beat", "bar"}, 3)
   params:add_option("confirm_clear_tape", "confirm clear tape", {"off", "on"}, 2)
   params:add_option("confirm_clear_track", "confirm clear track", {"off", "on"}, 2)
   params:add_option("confirm_clear_splice", "confirm clear splice", {"off", "on"}, 2)
+  params:add_option("clear_paste_buffer_after_paste", "paste clears paste buffer", {"off", "on"}, 1)
 
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)
