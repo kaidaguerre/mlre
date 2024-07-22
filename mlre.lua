@@ -143,7 +143,7 @@ patterns_page_names_l = {"meter", "launch"}
 patterns_page_names_r = {"length", "play   mode"}
 
 -- tape page variables
-tape_actions = {"load", "clear", "save", "copy", "paste", "protect", "unprotect"}
+tape_actions = {"load", "clear", "save", "copy", "paste"}
 tape_action = 1
 copy_track = nil
 copy_splice = nil
@@ -512,7 +512,7 @@ for i = 1, 6 do
     tp[i].splice[j].init_beatnum = DEFAULT_BEATNUM
     tp[i].splice[j].beatnum = DEFAULT_BEATNUM
     tp[i].splice[j].bpm = 60
-    tp[i].splice[j].protected = true
+    tp[i].splice[j].protected = false
   end
 end
 

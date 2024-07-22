@@ -900,12 +900,6 @@ function ui.tape_key(n, z)
           else
             show_message("clipboard   empty")
           end
-        elseif tape_actions[tape_action] == "protect" and z == 1 then
-            tp[track_focus].splice[track[track_focus].splice_focus].protected = true
-            show_message("protected")
-        elseif tape_actions[tape_action] == "unprotect" and z == 1 then
-            tp[track_focus].splice[track[track_focus].splice_focus].protected = false
-            show_message("unprotect")
         end
       elseif n == 3 and z == 1 then
         -- set barnum
@@ -1099,7 +1093,12 @@ function ui.tape_redraw()
     screen.move(124, 12)
     screen.text_right("TAPE")
     screen.move(4, 60)
-    screen.text("SPLICE "..track[track_focus].splice_focus)
+    splice_num = "SPLICE "..track[track_focus].splice_focus
+    --  if protected add '!'
+    if tp[track_focus].splice[track[track_focus].splice_focus].protected then
+      splice_num = splice_num.."!"
+    end
+    screen.text(splice_num)
     screen.level(4)
     screen.move(53, 60)
     if shift == 0 then

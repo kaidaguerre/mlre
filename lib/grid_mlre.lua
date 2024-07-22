@@ -790,6 +790,10 @@ function grd.pattern_draw(offset)
   end
 end
 
+--last time each splice key was pressed for each channel
+-- used to detect double press to protect splice
+local last_splice_press = {{},{},{},{},{},{}}
+
 function grd.tape_keys(x, y, z, offset)
   local y = offset and y - offset or y
   if z == 1 and view ~= vTAPE and autofocus then
@@ -802,6 +806,9 @@ function grd.tape_keys(x, y, z, offset)
     local i = y - 1
     --splice selection
     if x < 9 and z == 1 then
+        -- if the splice selection key is double pressed, protect/unprotect the splice
+      handle_splice_select_double_press(i,x)
+
       track_focus = i
       arc_track_focus = i
       -- x is splice #
@@ -888,6 +895,27 @@ function grd.tape_keys(x, y, z, offset)
   end
   dirtyscreen = true
   dirtygrid = true
+end
+
+function handle_splice_select_double_press(track_focus, splice_focus)
+  -- get the last time pressed
+  local last_press = last_splice_press[track_focus][splice_focus]
+  -- get the current time
+  local current_time = util.time()
+  -- set the last pressed time to the current time
+  last_splice_press[track_focus][splice_focus] = current_time
+  --if the last press was less than 0.1 seconds ago, protect/unprotect the splice (check for nil)
+  if last_press and current_time - last_press < 0.3 then
+    print("splice ".. track_focus .." double pressed")
+    -- get the references splice
+    sp = tp[track_focus].splice[splice_focus]
+    sp.protected  = not sp.protected
+    if sp.protected then
+      show_message("track  ".. track_focus .."  splice ".. splice_focus .."  protected")
+    else
+      show_message("track  ".. track_focus .."  splice ".. splice_focus .."  unprotected")
+    end
+  end
 end
 
 function grd.tape_draw(offset)
