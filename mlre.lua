@@ -516,6 +516,27 @@ for i = 1, 6 do
   end
 end
 
+-- return whether a splice is protected - or any splices it overlaps with are protected
+function splice_protected(i, j)
+  -- get splice
+  local s = tp[i].splice[j]
+  if s.protected then
+    return true
+  end
+
+  for k = 1, 8 do
+    if k ~= j and splices_overlap(s, tp[i].splice[k]) and tp[i].splice[k].protected then
+      return true
+    end
+  end
+  -- to get here the splice is not protected
+  return false
+end
+
+function splices_overlap(s1, s2)
+    return s1.s < s2.e and s2.s < s1.e
+end
+
 -- return protected splices for a track
 function get_protected_splices(i)
   protected_splices = {}
@@ -557,7 +578,7 @@ function set_clip(i)
 end
 
 function splice_resize(i, focus, length)
-  if tp[i].splice[focus].protected then
+  if splice_protected(i, focus) then
     show_message("splice   is   protected")
     return
   end
@@ -627,7 +648,7 @@ function clear_splice(i, confirm) -- clear focused splice
   local splice_focus = track[i].splice_focus
 
   -- is this splice protected?
-  if tp[i].splice[splice_focus].protected then
+  if splice_protected(i, splice_focus) then
       show_message("splice   is   protected")
       return
   end
@@ -773,6 +794,7 @@ function can_clear_buffers()
   for i = 1, 6 do
     local track_has_protected_splice = false
     for j = 1, 8 do
+      --no need to check for overlap just check flag
       if tp[i].splice[j].protected then
         protected_splice_count = protected_splice_count + 1
         track_has_protected_splice = true

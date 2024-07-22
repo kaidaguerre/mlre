@@ -368,8 +368,11 @@ function grd.rec_keys(x, y, z, offset)
   if z == 1 and view ~= vMAIN and autofocus then
     set_view(vMAIN)
   end
+  -- track row
   if y > 1 and y < 8 then
     local i = y - 1
+    local splice_focus = track[i].splice_focus
+    -- track select
     if x > 2 and x < 7 then
       held_focus = held_focus + (z * 2 - 1)
       if z == 1 then
@@ -386,11 +389,28 @@ function grd.rec_keys(x, y, z, offset)
         end
       end
     elseif x == 1 and alt == 0 and z == 1 then
+      -- is splice protected?
+      if splice_protected(track_focus, splice_focus) then
+        show_message("splice   "..splice_focus.."  is   protected")
+        return
+      end
+
       toggle_rec(i)
     elseif x == 1 and alt == 1 and z == 1 then
+      -- is splice protected?
+      if splice_protected(track_focus, splice_focus) then
+        show_message("splice   "..splice_focus.."  is   protected")
+        return
+      end
       track[i].fade = 1 - track[i].fade
       set_rec(i)
     elseif x == 2 and z == 1 then
+      -- is splice protected?
+      if splice_protected(track_focus, splice_focus) then
+        show_message("splice   "..splice_focus.."  is   protected")
+        return
+      end
+
       track[i].oneshot = 1 - track[i].oneshot
       for n = 1, 6 do
         if n ~= i then

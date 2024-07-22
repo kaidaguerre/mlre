@@ -840,7 +840,6 @@ end
 ---------------------- TAPE VIEW ------------------------
 
 function ui.tape_key(n, z)
-  print("tape key  "..n.."   "..z)
   splice_focus = track[track_focus].splice_focus
   if view_presets then
     if n == 2 and z == 1 then
@@ -864,14 +863,14 @@ function ui.tape_key(n, z)
       if n == 2 then
         if tape_actions[tape_action] == "load" and z == 1 then
           --check if splice is protected
-          if tp[track_focus].splice[splice_focus].protected then
+          if splice_protected(track_focus, splice_focus) then
               show_message("splice   protected")
           else
               screenredrawtimer:stop()
               fileselect.enter(os.getenv("HOME").."/dust/audio", function(n) fileselect_callback(n, track_focus) end)
           end
         elseif tape_actions[tape_action] == "clear" and z == 1 then
-          if tp[track_focus].splice[splice_focus].protected then
+          if splice_protected(track_focus, splice_focus) then
             show_message("splice   protected")
           else
             clear_splice(track_focus, false)
@@ -884,7 +883,7 @@ function ui.tape_key(n, z)
           copy_splice = track[track_focus].splice_focus
           show_message("copied   to   clipboard")
         elseif tape_actions[tape_action] == "paste" and z == 1 then
-          if tp[track_focus].splice[splice_focus].protected then
+          if splice_protected(track_focus, splice_focus) then
             show_message("splice   protected")
           else
             local paste_track = track_focus
