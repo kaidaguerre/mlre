@@ -593,8 +593,6 @@ function splice_resize(i, focus, length)
     end
   end
 
-  print("resize splice "..focus.." for track "..i.." to "..length.." beats "..tp[i].splice[focus].beatnum.. "tempo_map " ..track[i].tempo_map )
-
   -- set splice variables
   if tp[i].splice[focus].s + length <= tp[i].e then
     bpm = 60 / length * tp[i].splice[focus].beatnum
@@ -603,7 +601,6 @@ function splice_resize(i, focus, length)
     -- to be same length and contiguous
     if focus ==1 and params:get("auto_init_splices") == 2 then
        init_splices(i, length, tp[i].splice[focus].beatnum, bpm)
-      print("init_splices")
     end
 
 
@@ -620,7 +617,6 @@ function splice_resize(i, focus, length)
 end
 
 function splice_reset(i, focus) -- reset splice to default length
-  print("reset splice "..focus.." for track "..i)
   local focus = focus or track[i].splice_focus
   -- reset variables
   tp[i].splice[focus].s = tp[i].splice[focus].init_start
@@ -659,25 +655,24 @@ function clear_splice(i, confirm) -- clear focused splice
   if confirm_clear_splice and waiting_clear_splice_confirmation[i][splice_focus] == false then
     show_message("clear   track   "..i.."   splice   "..track[i].splice_focus.."?   (press)" )
     waiting_clear_splice_confirmation[i][splice_focus] = true
-    print("start clear_splice coroutine")
     clock.run(
             function()
-              print("clear_splice coroutine")
               clock.sleep(1)
-              print("clear_splice coroutine after sleep")
               if waiting_clear_splice_confirmation[i][splice_focus] then
                 waiting_clear_splice_confirmation[i][splice_focus] = false
                 show_message("track    "..i.."    splice    "..track[i].splice_focus.."    not    cleared" )
               end
-              print("clear_splice coroutine done")
               return
             end
     )
-    print("after clear_splice clear_tape coroutine")
     return
   else
     waiting_clear_splice_confirmation[i][splice_focus] = false
   end
+
+  -- after confirmation - save undo
+  print("save_undo (clear_splice)")
+  save_undo(i, splice_focus)
 
   local buffer = tp[i].side
   local start = tp[i].splice[track[i].splice_focus].s
@@ -707,24 +702,25 @@ function clear_tape(i, confirm) -- clear tape and reset splicesa
   if confirm_clear_track and waiting_clear_tape_confirmation[i] == false then
     show_message("clear   track   "..i.."    tape?   (press)" )
     waiting_clear_tape_confirmation[i] = true
-    print("start clear_tape coroutine")
     clock.run(
             function()
-              print("clear_tape coroutine")
               clock.sleep(1)
-              print("clear_tapes coroutine after sleep")
               if waiting_clear_tape_confirmation[i] then
                 waiting_clear_tape_confirmation [i] = false
                 show_message("track    "..i.."    tape    not   cleared")
               end
-              print("clear_tapes coroutine done")
               return
             end
     )
-    print("after start clear_tape coroutine")
     return
   else
     waiting_clear_tape_confirmation[i] = false
+  end
+
+  -- after confirmation - save undo for all splices
+  print("save_undo (clear_tape)")
+  for j = 1, 8 do
+    save_undo(i, j)
   end
 
   local buffer = tp[i].side
@@ -741,6 +737,7 @@ function clear_tape(i, confirm) -- clear tape and reset splicesa
 end
 
 waiting_clear_buffer_confirmation = false
+
 function clear_buffers() -- clear both buffers and reset splicesconfirm_clear_tape
   if can_clear_buffers() == false then
     return
@@ -1451,7 +1448,6 @@ function chop(i) -- called when rec key is pressed
       tp[i].splice[track[i].splice_active].init_len = length
       tp[i].splice[track[i].splice_active].beatnum = get_beatnum(length)
       tp[i].splice[track[i].splice_active].bpm = 60 / length * get_beatnum(length)
-      print("chop autolength " .. track[i].splice_active .. " length: " .. length .. " beatnum: " .. tp[i].splice[track[i].splice_active].beatnum .. " bpm: " .. tp[i].splice[track[i].splice_active].bpm)
       -- set clip
       set_clip(i)
       set_info(i, track[i].splice_active)
@@ -2064,7 +2060,6 @@ function send_cc()
 end
 
 function send_global_cc()
-  print("send global cc")
   global_params = { "reverb", "rev_tape_input", "rev_eng_input", "rev_cut_input", "rev_monitor_input",
                     "rev_return_level", "rev_pre_delay", "rev_lf_fc", "rev_low_time", "rev_mid_time", "rev_hf_damping",
                     "input_level", "output_level", "tape_level", "monitor_level", "engine_level", "softcut_level"}
@@ -2080,9 +2075,7 @@ function send_global_cc_loop()
       return
     end
     send_global_cc()
-    print("sent global cc")
     clock.sleep(10)
-    print("sleep")
   end
 end
 
@@ -2330,6 +2323,11 @@ function init()
   params:add_option("confirm_clear_track", "confirm clear track", {"off", "on"}, 2)
   params:add_option("confirm_clear_splice", "confirm clear splice", {"off", "on"}, 2)
   params:add_option("clear_paste_buffer_after_paste", "paste clears paste buffer", {"off", "on"}, 1)
+
+  -- undo settings
+  params:add_group("undo", "undo", 1)
+  params:add_option("enable_undo","enable undo", {"off", "on"}, 2)
+  params:set_action("enable_undo", function(val) enable_undo(val) end)
 
   -- arc settings
   params:add_group("arc_params", "arc settings", 5)
@@ -2719,9 +2717,7 @@ function init()
   quantizer = clock.run(update_q_clock)
   envcounter = clock.run(env_run)
   reset_clk = clock.run(track_reset)
-    print("sending global cc's")
   if params:get("midi_cc") == 2 then
-
     midi_cc = clock.run(send_global_cc_loop)
   end
 
@@ -2807,6 +2803,102 @@ function init()
 
 end -- end of init
 
+--------------------- UNDO -----------------------
+
+function enable_undo(val)
+  --print ("enable_undo  "..val)
+  if val == 2 then
+    -- set all tracks to use main buffer
+    for i = 1, 6 do
+      tp[i].side = 1
+      softcut.buffer(i, 1)
+    end
+  end
+end
+
+-- the time the undo button (1,1) was last pressed
+undo_last = 0
+
+function handle_undo_double_tap()
+  -- check for double tape
+  -- get the last time pressed
+  local last_press = undo_last
+  -- get the current time
+  local current_time = util.time()
+  -- set the last pressed time to the current time
+  undo_last = current_time
+  --if the last press was less than 0.1 seconds ago, protect/unprotect the splice (check for nil)
+  if last_press and current_time - last_press < 0.3 then
+    undo()
+    return true
+  end
+  return false
+end
+
+--2d array keeping track of confirmations for clearing each slice of each track
+undo_splices = {}
+for i = 1, 6 do
+  undo_splices[i] = {}
+  for j = 1, 8 do
+    undo_splices[i][j] = false
+  end
+end
+
+function save_undo(i,j)
+  --print("save_undo "..i.." "..j)
+  if params:get("enable_undo") == 1 then
+    --print("save_undo returning as disabled")
+    return
+  end
+
+  print("save_undo "..i.." "..j)
+  -- store track and splice in undo_splices
+  undo_splices[i][j] = true
+  -- copy splice to undo buffer
+  local src = 1
+  local dst = 2
+  softcut.buffer_copy_mono(src, dst, tp[i].splice[j].s, tp[i].splice[j].s, tp[i].splice[j].l, 0.01)
+end
+
+function undo()
+
+  print("undo")
+  local count = 0
+  for i = 1, 6 do
+    for j = 1, 8 do
+      -- have we backup up this splice?
+      if undo_splices[i][j] == true then
+        print("undo splice "..i.." "..j)
+        -- copy undo buffer to main buffer
+        local src = 2
+        local dst = 1
+        softcut.buffer_copy_mono(src, dst, tp[i].splice[j].s, tp[i].splice[j].s, tp[i].splice[j].l, 0.01)
+
+        -- if this is trhe active splice for the buffer and we are recording on that track, DO NOT clear the flag,
+        -- we may wish to undo again
+        print("undo splice "..i.." "..j.." splice_focus "..track[i].splice_focus.." rec "..track[i].rec)
+        if track[i].splice_focus == j  and track[i].rec == 1 then
+          print("undo splice "..i.." "..j.." is active and track is recording, not clearing flag")
+        else
+          -- clear flag
+          undo_splices[i][j] = false
+        end
+        count = count + 1
+      end
+    end
+  end
+  print("undo count "..count)
+  if count > 0 then
+    message = "undo "..count.." splice"
+    if count > 1 then
+      message = message.."s"
+    end
+    show_message(message)
+  else
+    show_message("nothing   to   undo")
+  end
+  print("undo done")
+end
 
 --------------------- USER INTERFACE -----------------------
 vMAIN = 0

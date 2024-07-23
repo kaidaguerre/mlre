@@ -97,7 +97,6 @@ function send_midi_for_param(param_name)
     warpedValue =  spec.warp.unmap(spec, val)
     mapped_val = math.floor(util.linlin(0,1,pmap.in_lo,pmap.in_hi,warpedValue))
   else
-    print("no spec")
     -- get the output range of the param
     local r = p:get_range()
     -- we are mapping FROM the parameter range TO the controller range
@@ -840,6 +839,7 @@ end
 ---------------------- TAPE VIEW ------------------------
 
 function ui.tape_key(n, z)
+  print("ui.tape_key  "..n.."  "..z)
   splice_focus = track[track_focus].splice_focus
   if view_presets then
     if n == 2 and z == 1 then
@@ -866,6 +866,8 @@ function ui.tape_key(n, z)
           if splice_protected(track_focus, splice_focus) then
               show_message("splice   protected")
           else
+              print("save_undo (load splice)  "..track_focus.."  "..splice_focus)
+              save_undo(track_focus, splice_focus)
               screenredrawtimer:stop()
               fileselect.enter(os.getenv("HOME").."/dust/audio", function(n) fileselect_callback(n, track_focus) end)
           end
@@ -873,6 +875,8 @@ function ui.tape_key(n, z)
           if splice_protected(track_focus, splice_focus) then
             show_message("splice   protected")
           else
+            print("save_undo (clear splice)  "..track_focus.."  "..splice_focus)
+            save_undo(track_focus, splice_focus)
             clear_splice(track_focus, false)
           end
         elseif tape_actions[tape_action] == "save" and z == 0 then
@@ -886,6 +890,8 @@ function ui.tape_key(n, z)
           if splice_protected(track_focus, splice_focus) then
             show_message("splice   protected")
           else
+            print("save_undo (paste splice)  "..track_focus.."  "..splice_focus)
+            save_undo(track_focus, splice_focus)
             local paste_track = track_focus
             local paste_splice = track[track_focus].splice_focus
             if copy_splice ~= nil then

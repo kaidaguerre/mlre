@@ -2,6 +2,13 @@
 local grd = {}
 
 function grd.nav(x, z, pos)
+  -- check for undo (double tapping alt)
+  if x == 16 and z == 1 then
+    if handle_undo_double_tap() then
+      return
+    end
+  end
+
   if z == 1 then
     if x == 1 then
       if alt == 1 then
@@ -395,6 +402,9 @@ function grd.rec_keys(x, y, z, offset)
         return
       end
 
+      print("save_undo (record))  "..track_focus.."  "..splice_focus)
+      save_undo(track_focus, splice_focus)
+
       toggle_rec(i)
     elseif x == 1 and alt == 1 and z == 1 then
       -- is splice protected?
@@ -402,6 +412,10 @@ function grd.rec_keys(x, y, z, offset)
         show_message("splice   "..splice_focus.."  is   protected")
         return
       end
+
+      print("save_undo (fade)  "..track_focus.."  "..splice_focus)
+      save_undo(track_focus, splice_focus)
+
       track[i].fade = 1 - track[i].fade
       set_rec(i)
     elseif x == 2 and z == 1 then
@@ -410,6 +424,9 @@ function grd.rec_keys(x, y, z, offset)
         show_message("splice   "..splice_focus.."  is   protected")
         return
       end
+
+      print("save_undo (one shot)  "..track_focus.."  "..splice_focus)
+      save_undo(track_focus, splice_focus)
 
       track[i].oneshot = 1 - track[i].oneshot
       for n = 1, 6 do

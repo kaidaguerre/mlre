@@ -7,8 +7,8 @@
 - [ ] Look at timing precision for splice select sync - can we trigger an event on looping? 
 - [ ] Add option for auto-length set all active, (unrecorded?) splices to the same length (for first channel only) - to emulate standard looper behaviour
 - [x] Add option to auto init splices to length - one after another
-- [ ] Add option for splice paste to NOT clear paste buffer
+- [x] Add option for splice paste to NOT clear paste buffer
 - [ ] Alt+mod+buffer select copies from active tro non active
-- [ ] Lock splice (finish) 
-- [ ] Undo mode
-- 
+- [x] Lock splice (finish) 
+- [x] Undo mode
+- [ ] fix global cc poll
