@@ -1517,9 +1517,11 @@ function set_lfo(i, track, destination)
     params:set("lfo_max_lfo_"..i, lfo_max[n])
     params:set("lfo_baseline_lfo_"..i, tab.key(lfo_baseline_options, lfo_baseline[n]))
     lfo[i]:set('action', function(scaled, raw)
-      params:set(track..lfo_params[n], scaled)
+      param_name = track..lfo_params[n]
+      params:set(param_name, scaled)
       lfo[i].slope = raw
       grid_page(vLFO)
+      send_midi_for_param(param_name)
     end)
     lfo[i]:set('state_callback', function(enabled)
       if not enabled and lfo[i].prev_val ~= nil then
